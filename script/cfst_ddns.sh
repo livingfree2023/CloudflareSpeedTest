@@ -78,17 +78,14 @@ _UPDATE() {
 
 	# 判断结果文件是否存在，如果不存在说明结果为 0
   #	[[ ! -e "result_ddns.txt" ]] && echo "CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..." && exit 0
-#-----------------
-  	# 如果需要 "找不到满足条件的 IP 就一直循环测速下去"，那么可以将下面的两个 exit 0 改为 _UPDATE 即可
-	[[ ! -e "result_ddns.txt" ]] && echo "CloudflareST 测速结果 IP 数量为 0，重试..." && _UPDATE #exit 0
+	# # 如果需要 "找不到满足条件的 IP 就一直循环测速下去"，那么可以将下面的两个 exit 0 改为 _UPDATE 即可
+	# [[ ! -e "result_ddns.txt" ]] && echo "CloudflareST 测速结果 IP 数量为 0，重试..." && _UPDATE #exit 0
 
-	# 下面这行代码是 "找不到满足条件的 IP 就一直循环测速下去" 才需要的代码
-	# 考虑到当指定了下载速度下限，但一个满足全部条件的 IP 都没找到时，CloudflareST 就会输出所有 IP 结果
-	# 因此当你指定 -sl 参数时，需要移除下面这段代码开头的 # 井号注释符，来做文件行数判断（比如下载测速数量：10 个，那么下面的值就设在为 11）
-	[[ $(cat result_ddns.txt|wc -l) > $((numberOfIP+1)) ]] && echo "CloudflareST 测速结果没有找到一个完全满足条件的 IP，重新测速..." && _UPDATE
+	# # 下面这行代码是 "找不到满足条件的 IP 就一直循环测速下去" 才需要的代码
+	# # 考虑到当指定了下载速度下限，但一个满足全部条件的 IP 都没找到时，CloudflareST 就会输出所有 IP 结果
+	# # 因此当你指定 -sl 参数时，需要移除下面这段代码开头的 # 井号注释符，来做文件行数判断（比如下载测速数量：10 个，那么下面的值就设在为 11）
+	# [[ $(cat result_ddns.txt|wc -l) > $((numberOfIP+1)) ]] && echo "CloudflareST 测速结果没有找到一个完全满足条件的 IP，重新测速..." && _UPDATE
 
-
-#-----------------
 	CONTENT=$(sed -n "2,1p" result_ddns.txt | awk -F, '{print $1}')
 	if [[ -z "${CONTENT}" ]]; then
 		echo "CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
@@ -103,6 +100,18 @@ _UPDATE() {
 }
 
 
+
+handle_exit(){
+  
+  if [ "$current_tcp_mode" != "disable" ]; then
+  	uci set "passwall.@global[0].tcp_proxy_mode"=$current_tcp_mode
+	uci commit
+  	echo "TCP Proxy Mode = $current_tcp_mode"
+  fi
+  echo "*** Goodbye"
+}
+
+trap handle_exit EXIT HUP INT TERM
 
 current_tcp_mode=$(uci get "passwall.@global[0].tcp_proxy_mode")
 echo "TCP Proxy Mode = $current_tcp_mode"
@@ -123,9 +132,6 @@ else
   echo "Current speed ($CURRENTSPEED) greater than target speed ($TARGETSPEED), SKIPPING tests"
 fi
 
-if [ "$current_tcp_mode" != "disable" ]; then
-  uci set "passwall.@global[0].tcp_proxy_mode"=$current_tcp_mode
-  uci commit
-  echo "TCP Proxy Mode = $current_tcp_mode"
-fi
+
+
 

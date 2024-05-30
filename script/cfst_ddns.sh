@@ -122,7 +122,7 @@ main(){
   fi
 
   _READ
-  cd "${FOLDER}"
+  #cd "${FOLDER}"
   _TESTCURRENT
   if [[ $(echo "$CURRENTSPEED - $TARGETSPEED" | bc) < 0  ]]; then
     notify_tg "*** Current $CURRENTIP@$CURRENTSPEED MB/s < target $TARGETSPEED MB/s, selecting new IP"

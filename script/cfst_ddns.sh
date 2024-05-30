@@ -57,12 +57,8 @@ _TESTCURRENT()
   echo "*** Current Speed: $CURRENTSPEED MB/s" 
 }
 
-
-
-
 _UPDATE() 
 {
-  date "+_UPDATE %m%d%H%M"
 
   # 这里可以自己添加、修改 CloudflareST 的运行参数
   ./CloudflareST \
@@ -110,10 +106,11 @@ handle_exit(){
     uci commit
       echo "TCP Proxy Mode = $current_tcp_mode"
   fi
-  echo "*** Goodbye"
+  date "+*** Goodbye %m/%d %H:%M"
 }
 
 main(){
+  date "+*** Hello %m/%d %H:%M"
   trap handle_exit EXIT HUP INT TERM
   current_tcp_mode=$(uci get "passwall.@global[0].tcp_proxy_mode")
   echo "TCP Proxy Mode = $current_tcp_mode"

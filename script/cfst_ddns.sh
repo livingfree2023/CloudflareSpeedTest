@@ -78,7 +78,7 @@ _UPDATE()
       echo "CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
       exit 0
   fi
-  NEWSPEED=$(sed -n "2,1p" result_ddns.txt |awk -F',' 'NR==2 {print $6}')
+  NEWSPEED=$(cat result_ddns.txt |awk -F',' 'NR==2 {print $6}')
   
   notify_tg "优选成功，准备更新$CONTENT@$NEWSPEED to $NAME"
   DDNS_RESULT=$(timeout 20s curl -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \

@@ -4,7 +4,7 @@ export PATH
 # --------------------------------------------------------------
 #	项目: CloudflareSpeedTest 自动更新域名解析记录
 #	版本: 1.0.4
-#	作者: XIU2, livingfree
+#	作者: XIU2
 #	项目: https://github.com/XIU2/CloudflareSpeedTest
 # --------------------------------------------------------------
 
@@ -47,7 +47,7 @@ _TESTCURRENT()
   CURRENTIP=$(nslookup $NAME 1.1.1.1 | \
               grep "Address: "| awk -F': ' '{ print $2 }')
 
-  echo "*** Testing current IP ($CURRENTIP)for $NAME with $TESTURL"
+  echo "*** Testing current IP ($CURRENTIP) "
 
   ./CloudflareST \
      -url $TESTURL \
@@ -57,7 +57,7 @@ _TESTCURRENT()
 
   CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
 
-  echo "*** Current Result: $CURRENTIP - $CURRENTSPEED MB/s" #|nali
+  echo "*** Current Speed: $CURRENTSPEED MB/s" #|nali
 }
 
 
@@ -85,12 +85,7 @@ _UPDATE() {
 	# 下面这行代码是 "找不到满足条件的 IP 就一直循环测速下去" 才需要的代码
 	# 考虑到当指定了下载速度下限，但一个满足全部条件的 IP 都没找到时，CloudflareST 就会输出所有 IP 结果
 	# 因此当你指定 -sl 参数时，需要移除下面这段代码开头的 # 井号注释符，来做文件行数判断（比如下载测速数量：10 个，那么下面的值就设在为 11）
-	[[ $(cat result_ddns.txt|wc -l) > $((numberOf
-IP+1)) ]] && echo "CloudflareST 测速结果没有找到一个完全满足条件的 IP，重新测速..." && _UPDATE
-
-
-
-
+	[[ $(cat result_ddns.txt|wc -l) > $((numberOfIP+1)) ]] && echo "CloudflareST 测速结果没有找到一个完全满足条件的 IP，重新测速..." && _UPDATE
 
 
 #-----------------
@@ -99,6 +94,7 @@ IP+1)) ]] && echo "CloudflareST 测速结果没有找到一个完全满足条件
 		echo "CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
 		exit 0
 	fi
+	echo "*** 看上去一切正常，准备更新$CONTENT to $NAME"
 	curl -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
 		-H "X-Auth-Email: ${EMAIL}" \
 		-H "X-Auth-Key: ${KEY}" \
@@ -120,7 +116,7 @@ fi
 _READ
 cd "${FOLDER}"
 _TESTCURRENT
-if [[ $CURRENTSPEED < $TARGETSPEED ]]; then
+if [[ $(echo "$CURRENTSPEED - $TARGETSPEED" | bc) < 0  ]]; then
   echo "Current speed ($CURRENTSPEED) less than target speed ($TARGETSPEED), RUNNING tests"
   _UPDATE
 else

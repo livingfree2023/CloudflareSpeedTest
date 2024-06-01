@@ -70,19 +70,19 @@ test_and_update()
       -tl 250 -tll 40 \
       -o "NEWSPEED.tmp"
 
-  CONTENT=$(sed -n "2,1p" NEWSPEED.tmp | awk -F, '{print $1}')
-  if [[ -z "${CONTENT}" ]]; then
+  NEWIP=$(sed -n "2,1p" NEWSPEED.tmp | awk -F, '{print $1}')
+  if [[ -z "${NEWIP}" ]]; then
       echo "  CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
       exit 0
   fi
   NEWSPEED=$(cat NEWSPEED.tmp |awk -F',' 'NR==2 {print $6}')
-  echo $NEWSPEED >> result_archive.txt
-  notify_tg "  优选成功，准备更新$CONTENT@$NEWSPEED to $NAME"
+  echo $NEWIP >> result_archive.txt
+  notify_tg "  优选成功，准备更新$NEWIP@$NEWSPEED to $NAME"
   DDNS_RESULT=$(timeout 20s curl -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
       -H "X-Auth-Email: ${EMAIL}" \
       -H "X-Auth-Key: ${KEY}" \
       -H "Content-Type: application/json" \
-      --data "{\"type\":\"${TYPE}\",\"name\":\"${NAME}\",\"content\":\"${CONTENT}\",\"ttl\":${TTL},\"proxied\":${PROXIED}}" )
+      --data "{\"type\":\"${TYPE}\",\"name\":\"${NAME}\",\"content\":\"${NEWIP}\",\"ttl\":${TTL},\"proxied\":${PROXIED}}" )
   if [ $? == 124 ]; then
     echo '  DDNS请求超时,请检查网络是否重启完成并是否能够访问api.cloudflare.com'
     exit 1

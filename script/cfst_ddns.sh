@@ -48,6 +48,7 @@ test_current()
   echo "  Speed Testing current $CURRENTIP"
 
   ./CloudflareST \
+     -dt $TESTLENGTH \
      -url $TESTURL \
      -o CURRENTSPEED.tmp \
      -ip $CURRENTIP \
@@ -64,6 +65,7 @@ test_and_update()
   # 这里可以自己添加、修改 CloudflareST 的运行参数
   ./CloudflareST \
       -url $TESTURL \
+      -dt $TESTLENGTH \
       -t 1 -n 500 -p 1 -tp 443 \
       -dn $TARGETNUMBEROFIP \
       -sl $TARGETSPEED \

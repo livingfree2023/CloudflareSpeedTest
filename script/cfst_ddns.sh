@@ -9,7 +9,13 @@ export PATH
 # --------------------------------------------------------------
 
 read_config() {
-  source cfst_ddns.conf
+  if [[ -f cfst_ddns.conf ]]; then
+    source cfst_ddns.conf
+  else
+    echo "cfst_ddns.conf not found. Please create it first by:"
+    echo "cp cfst_ddns.conf.template cfst_ddns.conf"
+    exit 1
+  fi
 }
 
 CURRENTIP=0.0.0.0

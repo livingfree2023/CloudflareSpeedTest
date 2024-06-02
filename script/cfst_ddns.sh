@@ -80,7 +80,8 @@ test_and_update()
   NEWSPEED=$(cat NEWSPEED.tmp |awk -F',' 'NR==2 {print $6}')
   echo $NEWIP >> result_archive.txt
   notify_tg "  优选成功，准备更新$NEWIP@$NEWSPEED to $NAME"
-  DDNS_RESULT=$(timeout 20s curl -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
+  DDNS_RESULT=$(timeout 20s curl -s \
+      -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
       -H "X-Auth-Email: ${EMAIL}" \
       -H "X-Auth-Key: ${KEY}" \
       -H "Content-Type: application/json" \

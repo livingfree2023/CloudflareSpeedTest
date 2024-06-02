@@ -128,7 +128,7 @@ main(){
   read_config
   #cd "${FOLDER}"
   test_current
-  if [[ $(echo "$CURRENTSPEED - $TARGETSPEED" | bc) < 0  ]]; then
+  if (( $(echo "$CURRENTSPEED < $TARGETSPEED" | bc -l)  )); then
     notify_tg "  Current $CURRENTIP @ $CURRENTSPEED MB/s < Target $TARGETSPEED MB/s, selecting new IP"
     test_and_update
   else

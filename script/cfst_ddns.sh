@@ -112,9 +112,9 @@ test_and_update()
 handle_exit(){
   
   if [ "$last_tcp_mode" != "disable" ]; then
-      uci set "passwall.@global[0].tcp_proxy_mode"=$last_tcp_mode
+    uci set "passwall.@global[0].tcp_proxy_mode"=$last_tcp_mode
     uci commit
-      echo "  TCP Proxy Mode = $last_tcp_mode"
+    echo "  TCP Proxy Mode = $last_tcp_mode"
   fi
   date "+<<<< Goodbye %m/%d %H:%M <<<<"
 }
@@ -138,7 +138,13 @@ main(){
     notify_tg "  Current $CURRENTIP @ $CURRENTSPEED MB/s < Target $TARGETSPEED MB/s, selecting new IP"
     test_and_update
   else
-    echo "  Current $CURRENTIP @ $CURRENTSPEED > Target $TARGETSPEED, abort"
+    MESSAGE="  Current $CURRENTIP @ $CURRENTSPEED > Target $TARGETSPEED, abort"
+    if [ $NOTIFY_TG_ABORT = 1 ]; then
+      notify_tg "$MESSAGE"
+    else
+      echo "$MESSAGE"
+    fi
+
   fi
 } 
 

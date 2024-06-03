@@ -12,7 +12,7 @@ read_config() {
   if [[ -f cfst_ddns.conf ]]; then
     source cfst_ddns.conf
   else
-    echo "cfst_ddns.conf not found. Please create it first by:"
+    echo "cfst_ddns.conf 文件不存在，请使用以下命令从模板创建:"
     echo "cp cfst_ddns.conf.template cfst_ddns.conf"
     exit 1
   fi
@@ -27,11 +27,11 @@ notify_tg()
   if [[ $NOTIFY_TG -eq 1 ]]; then
 
     if [[ -n "${TG_LAST_MSG_ID}" ]]; then
-      #echo "exist last message"
+      echo -n "  TG撤回消息[$TG_LAST_MSG_ID]成功 = "
       res=$(timeout 20s curl -s -X POST $TG_URL/deleteMessage \
             -d chat_id=${TG_USER_ID} \
             -d message_id=${TG_LAST_MSG_ID})
-      #echo $res | jq -r ' .result'
+      echo $res | jq -r ' .result'
     fi
 
     res=$(timeout 20s curl -s -X POST $TG_URL/sendMessage \
@@ -40,17 +40,18 @@ notify_tg()
             -d text="$1")
 
     if [ $? == 124 ]; then
-      echo '  TG_api请求超时,请检查网络是否重启完成并是否能够访问TG'          
+      echo "  $TG_URL 请求超时,请检查网络是否重启完成并是否能够访问TG"
       exit 1
     fi
     
     resSuccess=$(echo "$res" | jq -r ".ok")
+    TG_LAST_MSG_ID=$(echo "$res" | jq -r ".result.message_id")
     if [[ $resSuccess = "true" ]]; then
-      echo "  TG推送成功"
-      TG_LAST_MSG_ID=$(echo "$res" | jq -r ".result.message_id")
+      echo "  TG推送成功 MSGID [$TG_LAST_MSG_ID]"
       sed -i "s/^TG_LAST_MSG_ID=.*$/TG_LAST_MSG_ID=$TG_LAST_MSG_ID/" cfst_ddns.conf
     else
-      echo "  TG推送失败，请检查TG机器人token和ID"
+      echo "  TG推送失败，请检查返回消息: "
+      echo "$res" | jq
     fi
   fi
 }
@@ -62,7 +63,7 @@ test_current()
   CURRENTIP=$(nslookup $NAME 1.1.1.1 | \
               grep "Address: "| awk -F': ' '{ print $2 }')
 
-  echo "  Speed Testing current $CURRENTIP"
+  echo "  准备测速 $CURRENTIP"
 
   ./CloudflareST \
      -dt $TESTLENGTH \
@@ -73,7 +74,7 @@ test_current()
 
   CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
 
-  echo "  Current Speed: $CURRENTSPEED MB/s" 
+  echo "  当前车速: $CURRENTSPEED MB/s" 
 }
 
 test_and_update() 
@@ -125,31 +126,31 @@ handle_exit(){
   if [ "$last_tcp_mode" != "disable" ]; then
     uci set "passwall.@global[0].tcp_proxy_mode"=$last_tcp_mode
     uci commit
-    echo "  TCP Proxy Mode = $last_tcp_mode"
+    echo "  TCP默认代理 = $last_tcp_mode"
   fi
-  date "+<<<< Goodbye %m/%d %H:%M <<<<"
+  date "+<<<< Goodbye %m/%d %H:%M:%S <<<<"
 }
 
 main(){
-  date "+>>>> Hello   %m/%d %H:%M >>>>"
+  date "+>>>> Hello   %m/%d %H:%M:%S >>>>"
   trap handle_exit EXIT HUP INT TERM
   last_tcp_mode=$(uci get "passwall.@global[0].tcp_proxy_mode")
-  echo "  TCP Proxy Mode = $last_tcp_mode"
+  echo "  TCP默认代理 = $last_tcp_mode"
     
   if [ "$last_tcp_mode" != "disable" ]; then
     uci set "passwall.@global[0].tcp_proxy_mode"='disable'
     uci commit
-    echo "  TCP Proxy Mode = Disabled"
+    echo "  TCP默认代理 = Disabled"
   fi
 
   read_config
   #cd "${FOLDER}"
   test_current
   if (( $(echo "$CURRENTSPEED < $TARGETSPEED" | bc -l)  )); then
-    notify_tg "  Current $CURRENTIP @ $CURRENTSPEED MB/s < Target $TARGETSPEED MB/s, selecting new IP"
+    notify_tg "  当前车速 $CURRENTIP @ $CURRENTSPEED MB/s < 目标车速 $TARGETSPEED MB/s, 准备测速"
     test_and_update
   else
-    MESSAGE="  Current $CURRENTIP @ $CURRENTSPEED > Target $TARGETSPEED, abort"
+    MESSAGE="  当前车速 $CURRENTIP @ $CURRENTSPEED > 目标车速 $TARGETSPEED, 跳过测速"
     if [ $NOTIFY_TG_ABORT = 1 ]; then
       notify_tg "$MESSAGE"
     else

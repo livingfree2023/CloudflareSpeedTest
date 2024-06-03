@@ -25,7 +25,16 @@ notify_tg()
 {
   echo "$1"
   if [[ $NOTIFY_TG -eq 1 ]]; then
-    res=$(timeout 20s curl -s -X POST $TG_URL \
+
+    if [[ -n "${TG_LAST_MSG_ID}" ]]; then
+      #echo "exist last message"
+      res=$(timeout 20s curl -s -X POST $TG_URL/deleteMessage \
+            -d chat_id=${TG_USER_ID} \
+            -d message_id=${TG_LAST_MSG_ID})
+      #echo $res | jq -r ' .result'
+    fi
+
+    res=$(timeout 20s curl -s -X POST $TG_URL/sendMessage \
             -d chat_id=${TG_USER_ID} \
             -d parse_mode=${TG_MODE} \
             -d text="$1")
@@ -38,6 +47,8 @@ notify_tg()
     resSuccess=$(echo "$res" | jq -r ".ok")
     if [[ $resSuccess = "true" ]]; then
       echo "  TG推送成功"
+      TG_LAST_MSG_ID=$(echo "$res" | jq -r ".result.message_id")
+      sed -i "s/^TG_LAST_MSG_ID=.*$/TG_LAST_MSG_ID=$TG_LAST_MSG_ID/" cfst_ddns.conf
     else
       echo "  TG推送失败，请检查TG机器人token和ID"
     fi

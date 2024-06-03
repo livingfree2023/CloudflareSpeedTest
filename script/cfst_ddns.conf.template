@@ -22,4 +22,8 @@ NOTIFY_TG_ABORT=1
 TG_BOT_TOKEN=
 TG_USER_ID=
 TG_MODE='MARKDOWN'
-TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage"
+TG_URL="https://api.telegram.org/bot${TG_BOT_TOKEN}"
+#uncomment this line to disable message deletion,
+#script will update last message id here and will
+#always replace the last message to avoid flooding Telegram
+TG_LAST_MSG_ID=

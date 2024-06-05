@@ -27,11 +27,16 @@ notify_tg()
   if [[ $NOTIFY_TG -eq 1 ]]; then
 
     if [[ -n "${TG_LAST_MSG_ID}" ]]; then
-      echo -n "  TG撤回消息[$TG_LAST_MSG_ID]成功 = "
+      echo -n "  TG撤回消息[$TG_LAST_MSG_ID]... "
       res=$(timeout 20s curl -s -X POST $TG_URL/deleteMessage \
             -d chat_id=${TG_USER_ID} \
             -d message_id=${TG_LAST_MSG_ID})
-      echo $res | jq -r ' .result'
+      isSuccess=$(echo $res | jq -r ' .result')
+      if [ "$isSuccess" == "true" ]; then
+        echo "成功"
+      else
+        echo "失败 $res"
+      fi
     fi
 
     res=$(timeout 20s curl -s -X POST $TG_URL/sendMessage \
@@ -74,7 +79,7 @@ test_current()
 
   CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
 
-  echo "  当前车速: $CURRENTSPEED MB/s" 
+#echo "  当前车速: $CURRENTSPEED MB/s" 
 }
 
 test_and_update() 

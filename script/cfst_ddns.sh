@@ -8,9 +8,21 @@ export PATH
 #	项目: https://github.com/XIU2/CloudflareSpeedTest
 # --------------------------------------------------------------
 
+CURRENTIP=0.0.0.0
+CURRENTSPEED=0
+RECALLMSG=0
+
 read_config() {
   if [[ -f cfst_ddns.conf ]]; then
     source cfst_ddns.conf
+
+    if [[ -n "${TG_LAST_MSG_ID}" ]]; then
+      RECALLMSG=1
+      echo "  TG撤回消息开关: ON "
+    else
+      echo "  TG撤回消息开关: OFF "
+    fi
+
   else
     echo "cfst_ddns.conf 文件不存在，请使用以下命令从模板创建:"
     echo "cp cfst_ddns.conf.template cfst_ddns.conf"
@@ -18,15 +30,14 @@ read_config() {
   fi
 }
 
-CURRENTIP=0.0.0.0
-CURRENTSPEED=0
 
 notify_tg()
 {
   echo "$1"
+
   if [[ $NOTIFY_TG -eq 1 ]]; then
 
-    if [[ -n "${TG_LAST_MSG_ID}" ]]; then
+    if [[ $RECALLMSG == 1 ]]; then
       echo -n "  TG撤回消息[$TG_LAST_MSG_ID]... "
       res=$(timeout 20s curl -s -X POST $TG_URL/deleteMessage \
             -d chat_id=${TG_USER_ID} \
@@ -42,7 +53,7 @@ notify_tg()
     res=$(timeout 20s curl -s -X POST $TG_URL/sendMessage \
             -d chat_id=${TG_USER_ID} \
             -d parse_mode=${TG_MODE} \
-            -d text="$1")
+            -d text="$1" 2>&1)
 
     if [ $? == 124 ]; then
       echo "  $TG_URL 请求超时,请检查网络是否重启完成并是否能够访问TG"
@@ -53,7 +64,9 @@ notify_tg()
     TG_LAST_MSG_ID=$(echo "$res" | jq -r ".result.message_id")
     if [[ $resSuccess = "true" ]]; then
       echo "  TG推送成功 MSGID [$TG_LAST_MSG_ID]"
-      sed -i "s/^TG_LAST_MSG_ID=.*$/TG_LAST_MSG_ID=$TG_LAST_MSG_ID/" cfst_ddns.conf
+        if [[ $RECALLMSG == 1 ]]; then
+          sed -i "s/^TG_LAST_MSG_ID=.*$/TG_LAST_MSG_ID=$TG_LAST_MSG_ID/" cfst_ddns.conf
+        fi
     else
       echo "  TG推送失败，请检查返回消息: "
       echo "$res" | jq
@@ -82,6 +95,27 @@ test_current()
 #echo "  当前车速: $CURRENTSPEED MB/s" 
 }
 
+update_hosts() {
+
+  DOMAIN="$1"
+  NEW_IP="$2"
+  HOSTS_FILE="/etc/hosts"
+
+  # Backup the hosts file
+  cp $HOSTS_FILE  ${HOSTS_FILE}.bak
+
+  # Check if the DOMAIN exists in the hosts file
+  if grep -q "$DOMAIN" $HOSTS_FILE; then
+    sed -i.bak "s/^.*$DOMAIN\$/$NEW_IP $DOMAIN/" $HOSTS_FILE
+    echo "$NEW_IP for $DOMAIN updated successfully in $HOSTS_FILE"
+  else
+    echo "$NEW_IP $DOMAIN" >> $HOSTS_FILE
+    echo "DOMAIN $DOMAIN added to $HOSTS_FILE with IP $NEW_IP"
+  fi
+
+}
+
+
 test_and_update() 
 {
 
@@ -103,6 +137,9 @@ test_and_update()
   NEWSPEED=$(cat NEWSPEED.tmp |awk -F',' 'NR==2 {print $6}')
   echo $NEWIP >> result_archive.txt
   notify_tg "  优选成功，准备更新$NEWIP@$NEWSPEED to $NAME"
+
+  update_hosts $NAME $NEWIP
+
   DDNS_RESULT=$(timeout 20s curl -s \
       -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
       -H "X-Auth-Email: ${EMAIL}" \
@@ -150,7 +187,12 @@ main(){
 
   read_config
   #cd "${FOLDER}"
-  test_current
+  if [ "$SKIP_TEST_CURRENT" = false ]; then
+    test_current
+  else
+    echo "  SKIP_TEST_CURRENT is true, CURRENTSPEED shall be 0"
+  fi
+
   if (( $(echo "$CURRENTSPEED < $TARGETSPEED" | bc -l)  )); then
     notify_tg "  当前车速 $CURRENTIP @ $CURRENTSPEED MB/s < 目标车速 $TARGETSPEED MB/s, 准备测速"
     test_and_update

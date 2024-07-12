@@ -82,6 +82,12 @@ test_current()
               grep "Address: "| awk -F': ' '{ print $2 }')
 
   echo "  准备测速 $CURRENTIP"
+  #in case the current IP is not reachable, CFST will not create 
+  #CURRENTSPEED.tmp file, thus the old file would be read later. 
+  #So we need to rm it
+  if [ -f CURRENTSPEED.tmp ]; then 
+    rm CURRENTSPEED.tmp
+  fi
 
   ./CloudflareST \
      -dt $TESTLENGTH \
@@ -90,7 +96,11 @@ test_current()
      -ip $CURRENTIP \
      > /dev/null 2>&1
 
-  CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
+  if [ -f CURRENTSPEED.tmp ]; then
+    CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
+  else
+    CURRENTSPEED=0
+  fi
 
 #echo "  当前车速: $CURRENTSPEED MB/s" 
 }
@@ -119,6 +129,11 @@ update_hosts() {
 test_and_update() 
 {
 
+  # if CFST fails to create NEWSPEED.tmp, avoid reading the old one
+  if [ -f NEWSPEED.tmp ]; then
+    rm NEWSPEED.tmp
+  fi
+  
   # 这里可以自己添加、修改 CloudflareST 的运行参数
   ./CloudflareST \
       -url $TESTURL \

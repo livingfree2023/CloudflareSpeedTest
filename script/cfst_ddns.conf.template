@@ -11,6 +11,7 @@ TTL=1
 PROXIED=false
 
 #CloudflareSpeedTest parameters
+SKIP_TEST_CURRENT=false
 TESTURL=
 TARGETSPEED=12
 TARGETNUMBEROFIP=3

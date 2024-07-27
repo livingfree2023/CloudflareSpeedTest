@@ -24,8 +24,8 @@ read_config() {
     fi
 
   else
-    echo "cfst_ddns.conf 文件不存在，请使用以下命令从模板创建:"
-    echo "cp cfst_ddns.conf.template cfst_ddns.conf"
+    echo "  cfst_ddns.conf 文件不存在，请使用以下命令从模板创建:"
+    echo "  cp cfst_ddns.conf.template cfst_ddns.conf"
     exit 1
   fi
 }
@@ -44,9 +44,9 @@ notify_tg()
             -d message_id=${TG_LAST_MSG_ID})
       isSuccess=$(echo $res | jq -r ' .result')
       if [ "$isSuccess" == "true" ]; then
-        echo "成功"
+        echo "  成功"
       else
-        echo "失败 $res"
+        echo "  失败 $res"
       fi
     fi
 
@@ -117,10 +117,10 @@ update_hosts() {
   # Check if the DOMAIN exists in the hosts file
   if grep -q "$DOMAIN" $HOSTS_FILE; then
     sed -i.bak "s/^.*$DOMAIN\$/$NEW_IP $DOMAIN/" $HOSTS_FILE
-    echo "$NEW_IP for $DOMAIN updated successfully in $HOSTS_FILE"
+    echo "  $NEW_IP for $DOMAIN updated successfully in $HOSTS_FILE"
   else
-    echo "$NEW_IP $DOMAIN" >> $HOSTS_FILE
-    echo "DOMAIN $DOMAIN added to $HOSTS_FILE with IP $NEW_IP"
+    echo "  $NEW_IP $DOMAIN" >> $HOSTS_FILE
+    echo "  DOMAIN $DOMAIN added to $HOSTS_FILE with IP $NEW_IP"
   fi
 
 }
@@ -170,7 +170,8 @@ test_and_update()
   if [[ $IS_SUCCESS = "true" ]]; then
     notify_tg "  DDNS更新成功"
   else
-    notify_tg "  DDNS更新失败请检查:$DDNS_RESULT"
+    notify_tg "  DDNS更新失败请检查:"
+    echo "$DDNS_RESULT" | jq
     exit 1
   fi
   

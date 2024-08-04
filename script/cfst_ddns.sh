@@ -13,6 +13,9 @@ CURRENTSPEED=0
 RECALLMSG=0
 declare -a DNS_RECORD_IDS=()
 
+TEMP_FILE=$(mktemp)
+exec > >(tee -a "${TEMP_FILE}") 2>&1
+
 read_config() {
   if [[ -f cfst_ddns.conf ]]; then
     source cfst_ddns.conf
@@ -50,9 +53,7 @@ retrive_dns_record_id() {
 
 notify_tg()
 {
-  echo "$1"
-
-  if [[ $NOTIFY_TG -eq 1 ]]; then
+   if [[ -n "$1"  ]]; then
 
     if [[ $RECALLMSG == 1 ]]; then
       echo -n "  TG撤回消息[$TG_LAST_MSG_ID]... "
@@ -94,8 +95,8 @@ notify_tg()
 
 test_current()
 {
-  
-  CURRENTIP=$(nslookup $MYDOMAINS[0] 1.1.1.1 | \
+  ## TODO: now, only test the first domain
+  CURRENTIP=$(nslookup ${MYDOMAINS[0]} 1.1.1.1 | \
               grep "Address: "| awk -F': ' '{ print $2 }')
 
   echo "  准备测速 $CURRENTIP"
@@ -160,7 +161,9 @@ test_and_update()
       -dn $TARGETNUMBEROFIP \
       -sl $TARGETSPEED \
       -tl 250 -tll 40 \
-      -o "NEWSPEED.tmp"
+      -o "NEWSPEED.tmp" \
+      > /dev/null 2>&1
+
 
   
   # if [[ -z "${NEWIP1}" || -z "${NEWIP2}" || -z "${NEWIP3}" || -z "${NEWIP4}" || -z "${NEWIP5}" ]]; then
@@ -182,7 +185,7 @@ test_and_update()
     echo "  优选成功，准备更新hosts文件${NEWIPS[$index]}@${NEWSPEEDS[$index]} to ${MYDOMAINS[$index]} ID=${DNS_RECORD_IDS[$index]}"
     update_hosts  ${MYDOMAINS[$index]} ${NEWIPS[$index]}
 
-    notify_tg "  优选成功，准备更新${NEWIPS[$index]}@${NEWSPEEDS[$index]} to ${MYDOMAINS[$index]}"
+    echo "  优选成功，准备更新${NEWIPS[$index]}@${NEWSPEEDS[$index]} to ${MYDOMAINS[$index]}"
     DDNS_RESULT=$(timeout 20s curl -s \
       -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORD_IDS[$index]}" \
       -H "X-Auth-Email: ${EMAIL}" \
@@ -196,9 +199,9 @@ test_and_update()
 
     IS_SUCCESS=$(echo "$DDNS_RESULT" | jq -r ".success")
     if [[ $IS_SUCCESS = "true" ]]; then
-      notify_tg "  DDNS更新成功"
+      echo "  DDNS更新成功"
     else
-      notify_tg "  DDNS更新失败请检查:"
+      echo "  DDNS更新失败请检查:"
       echo "$DDNS_RESULT" | jq
       exit 1
     fi
@@ -232,7 +235,7 @@ main(){
 
   read_config
   retrive_dns_record_id
-  #cd "${FOLDER}"
+  
   if [ "$SKIP_TEST_CURRENT" = false ]; then
     test_current
   else
@@ -240,17 +243,19 @@ main(){
   fi
 
   if (( $(echo "$CURRENTSPEED < $TARGETSPEED" | bc -l)  )); then
-    notify_tg "  当前车速 $CURRENTIP @ $CURRENTSPEED MB/s < 目标车速 $TARGETSPEED MB/s, 准备测速"
+    echo "  当前车速 $CURRENTIP @ $CURRENTSPEED MB/s < 目标车速 $TARGETSPEED MB/s, 准备测速"
     test_and_update
   else
-    MESSAGE="  当前车速 $CURRENTIP @ $CURRENTSPEED > 目标车速 $TARGETSPEED, 跳过测速"
-    if [ $NOTIFY_TG_ABORT = 1 ]; then
-      notify_tg "$MESSAGE"
-    else
-      echo "$MESSAGE"
-    fi
-
+    echo "  当前车速 $CURRENTIP @ $CURRENTSPEED > 目标车速 $TARGETSPEED, 跳过测速"
+    
   fi
+
+  
+  notify_tg "$(cat "${TEMP_FILE}")"
+
+  # Clean up
+  rm "${TEMP_FILE}"
+
 } 
 
 

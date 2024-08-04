@@ -11,6 +11,7 @@ export PATH
 CURRENTIP=0.0.0.0
 CURRENTSPEED=0
 RECALLMSG=0
+declare -a DNS_RECORD_IDS=()
 
 read_config() {
   if [[ -f cfst_ddns.conf ]]; then
@@ -30,6 +31,22 @@ read_config() {
   fi
 }
 
+retrive_dns_record_id() {
+  echo "  查询DNS RECORD ID:"
+  ALL_RECORDS=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+            -H "X-Auth-Key: $KEY" \
+            -H "X-Auth-Email: $EMAIL" \
+            -H "Content-Type: application/json")
+  for DOMAIN in "${MYDOMAINS[@]}"; do
+    RECORD_ID=$(echo $ALL_RECORDS | jq -r '.result[] | select(.name == "'"$DOMAIN"'") | .id')
+    if [[ -n "$RECORD_ID" ]]; then
+      echo "  $DOMAIN -> $RECORD_ID"
+      DNS_RECORD_IDS+=("$RECORD_ID")
+    fi
+
+  done
+
+}
 
 notify_tg()
 {
@@ -78,7 +95,7 @@ notify_tg()
 test_current()
 {
   
-  CURRENTIP=$(nslookup $NAME 1.1.1.1 | \
+  CURRENTIP=$(nslookup $MYDOMAINS[0] 1.1.1.1 | \
               grep "Address: "| awk -F': ' '{ print $2 }')
 
   echo "  准备测速 $CURRENTIP"
@@ -90,11 +107,11 @@ test_current()
   fi
 
   ./CloudflareST \
-     -dt $TESTLENGTH \
-     -url $TESTURL \
-     -o CURRENTSPEED.tmp \
-     -ip $CURRENTIP \
-     > /dev/null 2>&1
+    -dt $TESTLENGTH \
+    -url $TESTURL \
+    -o CURRENTSPEED.tmp \
+    -ip $CURRENTIP \
+    > /dev/null 2>&1
 
   if [ -f CURRENTSPEED.tmp ]; then
     CURRENTSPEED=$(cat CURRENTSPEED.tmp |awk -F',' 'NR==2 {print $6}')
@@ -103,6 +120,7 @@ test_current()
   fi
 
 #echo "  当前车速: $CURRENTSPEED MB/s" 
+
 }
 
 update_hosts() {
@@ -144,37 +162,48 @@ test_and_update()
       -tl 250 -tll 40 \
       -o "NEWSPEED.tmp"
 
-  NEWIP=$(sed -n "2,1p" NEWSPEED.tmp | awk -F, '{print $1}')
-  if [[ -z "${NEWIP}" ]]; then
-      echo "  CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
-      exit 0
-  fi
-  NEWSPEED=$(cat NEWSPEED.tmp |awk -F',' 'NR==2 {print $6}')
-  echo $NEWIP >> result_archive.txt
-  notify_tg "  优选成功，准备更新$NEWIP@$NEWSPEED to $NAME"
+  
+  # if [[ -z "${NEWIP1}" || -z "${NEWIP2}" || -z "${NEWIP3}" || -z "${NEWIP4}" || -z "${NEWIP5}" ]]; then
+  #     echo "  CloudflareST 测速结果 IP 数量为 0，跳过下面步骤..."
+  #     exit 0
+  # fi
 
-  update_hosts $NAME $NEWIP
+  declare -a NEWIPS=()
+  declare -a NEWSPEEDS=()
 
-  DDNS_RESULT=$(timeout 20s curl -s \
-      -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORDS_ID}" \
+  for index in "${!MYDOMAINS[@]}"; do
+    echo "  MYDOMAINS[$index] = ${MYDOMAINS[$index]}"
+    let ROWNUM=2+$index
+    NEWIPS[$index]=$(sed -n "$ROWNUM,1p" NEWSPEED.tmp | awk -F, '{print $1}')
+    NEWSPEEDS[$index]=$(sed -n "$ROWNUM,1p" NEWSPEED.tmp | awk -F, '{print $6}')
+    
+    # echo ${NEWIPS[0]} >> result_archive.txt
+
+    echo "  优选成功，准备更新hosts文件${NEWIPS[$index]}@${NEWSPEEDS[$index]} to ${MYDOMAINS[$index]} ID=${DNS_RECORD_IDS[$index]}"
+    update_hosts  ${MYDOMAINS[$index]} ${NEWIPS[$index]}
+
+    notify_tg "  优选成功，准备更新${NEWIPS[$index]}@${NEWSPEEDS[$index]} to ${MYDOMAINS[$index]}"
+    DDNS_RESULT=$(timeout 20s curl -s \
+      -X PUT "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${DNS_RECORD_IDS[$index]}" \
       -H "X-Auth-Email: ${EMAIL}" \
       -H "X-Auth-Key: ${KEY}" \
       -H "Content-Type: application/json" \
-      --data "{\"type\":\"${TYPE}\",\"name\":\"${NAME}\",\"content\":\"${NEWIP}\",\"ttl\":${TTL},\"proxied\":${PROXIED}}" )
-  if [ $? == 124 ]; then
-    echo '  DDNS请求超时,请检查网络是否重启完成并是否能够访问api.cloudflare.com'
-    exit 1
-  fi
+      --data "{\"type\":\"${TYPE}\",\"name\":\"${MYDOMAINS[$index]}\",\"content\":\"${NEWIPS[$index]}\",\"ttl\":${TTL},\"proxied\":${PROXIED}}" )
+    if [ $? == 124 ]; then
+      echo '  DDNS请求超时,请检查网络是否重启完成并是否能够访问api.cloudflare.com'
+      exit 1
+    fi
 
-  IS_SUCCESS=$(echo "$DDNS_RESULT" | jq -r ".success")
-  if [[ $IS_SUCCESS = "true" ]]; then
-    notify_tg "  DDNS更新成功"
-  else
-    notify_tg "  DDNS更新失败请检查:"
-    echo "$DDNS_RESULT" | jq
-    exit 1
-  fi
-  
+    IS_SUCCESS=$(echo "$DDNS_RESULT" | jq -r ".success")
+    if [[ $IS_SUCCESS = "true" ]]; then
+      notify_tg "  DDNS更新成功"
+    else
+      notify_tg "  DDNS更新失败请检查:"
+      echo "$DDNS_RESULT" | jq
+      exit 1
+    fi
+  done
+
 }
 
 
@@ -202,6 +231,7 @@ main(){
   fi
 
   read_config
+  retrive_dns_record_id
   #cd "${FOLDER}"
   if [ "$SKIP_TEST_CURRENT" = false ]; then
     test_current
@@ -222,6 +252,7 @@ main(){
 
   fi
 } 
+
 
 main
 

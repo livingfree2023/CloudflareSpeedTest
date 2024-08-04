@@ -82,11 +82,15 @@ notify_tg()
     TG_LAST_MSG_ID=$(echo "$res" | jq -r ".result.message_id")
     if [[ $resSuccess = "true" ]]; then
       echo "  TG推送成功 MSGID [$TG_LAST_MSG_ID]"
-        if [[ $RECALLMSG == 1 ]]; then
-          sed -i "s/^TG_LAST_MSG_ID=.*$/TG_LAST_MSG_ID=$TG_LAST_MSG_ID/" cfst_ddns.conf
-        fi
+      # even if the switch is OFF, we can still update latest msg id
+      # ^\s* matches any leading whitespace at the start of the line
+      # ? optionally matches a # character (indicating a commented line).
+      # \s* matches any whitespace following the optional #.
+      # TG_LAST_MSG_ID=.*$ matches the rest of the line that sets TG_LAST_MSG_ID
+      sed -i "s|^\(\s*#\?.*TG_LAST_MSG_ID=\).*|\1${new_TG_LAST_MSG_ID}|" cfst_ddns.conf
+
     else
-      echo "  TG推送失败，请检查返回消息: "
+      echo "  notify_tg failed: "
       echo "$res" | jq
     fi
   fi
